@@ -3,54 +3,52 @@
 import pygame
 import time
 import csv
+import socket
+import os.path
+import uuid
 
 # Parameters
-bpath		= "/home/pi/RPiKiosk/"
+p_group			= "dev"
+p_server		= "10.40.1.10"
+p_port			= 5050
+p_p_bufferSize	= 255
+# Constants
+bpath		= "/home/pi/rpiKiosk/"
 imgpath		= bpath+"images/"
-
-# Globals
-p_id		= 0
-p_group		= "null"
-p_server	= "null"
-p_uname		= "null"
-p_paswd		= "null"
 images 		= [] # Array of [image, display time]
-# screen		= pygame.display.set_mode((1280,960))#, pygame.FULLSCREEN)
-
 
 
 ############################
-#         Functions        #
+#         Methods          #
 ############################
 
-# Read from the configuration file
-def loadConfiguration():
-	with open("%s.config" % (bpath), 'r') as configfile:
-		reader = csv.reader(configfile, delimiter="=")
-		for config in reader:
-			param = config[0].strip()
-			value = config[1].strip()
+def getUUID():
+	global g_UUID
+	if os.path.exists(bpath+".uuid"):
+		with open(bpath+".uuid", 'r') as file:
+			g_UUID = file.read()
+	else:
+		with open(bpath+".uuid", 'w') as file:
+			g_UUID = str(uuid.uuid4())
+			file.write(g_UUID)
 
-			if param == "id":
-				p_id = int(value)
-			if param == "group":
-				p_group = value
-			if param == "server":
-				p_server = value
-			if param == "uname":
-				p_uname = value
-			if param == "paswd":
-				p_paswd = value
+def initPygame():
+	global screen
+	screen = pygame.display.set_mode((1280,960))#, pygame.FULLSCREEN)
 
+# Connect to the control server, let it know what group you belong to and obtain a unique identifier
+def getID():
+	global g_id
+	
+	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	sock.connect((p_server, p_port))
+	
+	sock.send(bytes("getid %s %s"%(p_group, g_UUID), 'utf-8'))
+	g_id = int(sock.recv(p_bufferSize).decode('utf-8'))
 
-# Check to see if updates exist on the control server, and if they
-# do, download them
+# Check the control server for new images to display. If they exist, download them.
+# Should be run every minute
 def update():
-	pass
-
-# Connect to control server, let it know who you are, where you are
-# and what you're all about
-def bonjour():
 	pass
 
 def loadImages():
@@ -61,7 +59,6 @@ def loadImages():
 			images.append([pygame.image.load(imgpath + row[0]), row[1]])
 
 def dispImages():
-
 	for image in images:
 		screen.blit(image[0], (0, 0))
 		pygame.display.flip()
@@ -74,11 +71,12 @@ def dispImages():
 print("RPi Kiosk")
 print("By Logan Small")
 
-loadConfiguration()
-print(p_id)
-print(p_paswd)
-exit()
-
+# Init
+getUUID()
+getID()
 loadImages()
+initPygame()
+
+# Main Loop
 while True:
 	dispImages()
